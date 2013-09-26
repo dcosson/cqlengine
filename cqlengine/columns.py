@@ -592,14 +592,10 @@ class Set(BaseContainerColumn):
             # don't return anything if the new value is the same as
             # the old one, or if the new value is none
             return []
-        elif prev is None or not any({v in prev for v in val}):
-            field = uuid1().hex
-            ctx[field] = self.Quoter(val)
-            return ['"{}" = :{}'.format(self.db_field_name, field)]
         else:
             # partial update time
-            to_create = val - prev
-            to_delete = prev - val
+            to_create = val - (prev or set())
+            to_delete = (prev or set()) - val
             statements = []
 
             if to_create:
