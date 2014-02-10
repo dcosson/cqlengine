@@ -22,32 +22,36 @@ class cassandra {
   include xfstools
   include java
 
-  package {"wget":
-    ensure => latest
+  package { "curl": }
+
+  file {"/etc/apt/sources.list.d/cassandra.list":
+    mode    => '0644',
+    content => "deb http://debian.datastax.com/community stable main",
   }
 
-  file {"/etc/init/cassandra.conf":
-    source => "puppet:///modules/cassandra/cassandra.upstart",
-    owner  => root
-  }
-  
-  exec {"download-cassandra":
-    cwd => "/tmp",
-    command => "wget http://download.nextag.com/apache/cassandra/1.1.6/apache-cassandra-1.1.6-bin.tar.gz",
-    creates => "/tmp/apache-cassandra-1.1.6-bin.tar.gz",
-    require => [Package["wget"], File["/etc/init/cassandra.conf"]]
+  exec {"add datastax apt key":
+    command     => "curl -L http://debian.datastax.com/debian/repo_key | apt-key add -",
+    require     => Package["curl"],
+    subscribe   => File["/etc/apt/sources.list.d/cassandra.list"],
+    refreshonly => true,
   }
 
-  exec {"install-cassandra":
-    cwd => "/tmp",
-    command => "tar -xzf apache-cassandra-1.1.6-bin.tar.gz; mv apache-cassandra-1.1.6 /usr/local/cassandra",
-    require => Exec["download-cassandra"],
-    creates => "/usr/local/cassandra/bin/cassandra"
+  exec {"apt update for datastax repo":
+    command     => "apt-get update",
+    subscribe   => Exec["add datastax apt key"],
+    refreshonly => true,
+  }
+
+  package {"dsc20":
+    ensure  => latest,
+    require => [ Exec["apt update for datastax repo"],
+                 Package['openjdk-7-jre-headless'],
+    ],
   }
 
   service {"cassandra":
-    ensure => running,
-    require => Exec["install-cassandra"]
+    ensure  => running,
+    require => Package["dsc20"],
   }
 }
 
@@ -60,7 +64,7 @@ node cassandraengine inherits basenode {
 
   exec {"install-requirements":
     cwd => "/vagrant",
-    command => "pip install -r requirements.txt",
+    command => "pip install -r requirements.txt && pip install -r requirements-dev.txt",
     require => [Package["python-pip"], Package["python-dev"]]
   }
 }
